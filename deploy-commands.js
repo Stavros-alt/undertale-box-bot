@@ -28,10 +28,15 @@ const rest = new REST().setToken(process.env.DISCORD_TOKEN);
     try {
         console.log(`uploading ${commands.length} commands...`);
 
-        // fast route if guild id exists, otherwise global (takes an hour, slow as hell)
-        const route = process.env.GUILD_ID
-            ? Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID)
-            : Routes.applicationCommands(process.env.CLIENT_ID);
+        // prioritize global if --global flag is passed. it takes an hour to sync. i hate it.
+        const isGlobal = process.argv.includes('--global');
+        const route = (isGlobal || !process.env.GUILD_ID)
+            ? Routes.applicationCommands(process.env.CLIENT_ID)
+            : Routes.applicationGuildCommands(process.env.CLIENT_ID, process.env.GUILD_ID);
+
+        if (isGlobal) console.log('forcing global deployment. go grab a coffee or something.');
+        else if (process.env.GUILD_ID) console.log(`deploying to guild: ${process.env.GUILD_ID}`);
+        else console.log('deploying globally.');
 
         const data = await rest.put(
             route,
