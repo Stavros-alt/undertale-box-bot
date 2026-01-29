@@ -1,0 +1,30 @@
+{
+    "undertale-sans": {
+        "name": "Sans",
+        "universe": "undertale",
+        "sprites": {
+            "textbox": {
+                "default": {
+                    "name": "Default",
+                    "file": "default.png"
+                },
+                "wink": {
+                    "name": "Winking",
+                    "file": "wink.png"
+                }
+            }
+        }
+    },
+    "deltarune-toby": {
+        "name": "Annoying Dog",
+        "universe": "deltarune",
+        "sprites": {
+            "textbox": {
+                "default": {
+                    "name": "Bark",
+                    "file": "bark.png"
+                }
+            }
+        }
+    }
+}
