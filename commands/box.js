@@ -56,7 +56,8 @@ module.exports = {
             for (const id in charData) {
                 const char = charData[id];
                 if (char.name.toLowerCase().includes(query) || id.includes(query)) {
-                    choices.push({ name: char.name, value: id });
+                    const universe = char.universe ? char.universe.charAt(0).toUpperCase() + char.universe.slice(1) : 'Unknown';
+                    choices.push({ name: `${char.name} (${universe})`, value: id });
                     count++;
                     if (count >= 25) break;
                 }
