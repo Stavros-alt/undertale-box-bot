@@ -145,5 +145,7 @@ function generateUrl(charId, expression, text) {
     params.append('expression', expression);
     params.append('box', box);
 
-    return `https://www.demirramon.com/gen/undertale_text_box.png?${params.toString()}`;
+    const url = `https://www.demirramon.com/gen/undertale_text_box.png?${params.toString()}`;
+    console.log(`[box] generated url: ${url}`);
+    return url;
 }
