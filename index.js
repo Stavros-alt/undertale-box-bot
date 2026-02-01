@@ -40,10 +40,17 @@ client.on(Events.InteractionCreate, async interaction => {
             await command.execute(interaction);
         } catch (error) {
             console.error(error);
-            if (interaction.replied || interaction.deferred) {
-                await interaction.followUp({ content: 'something broke. i hate this.', ephemeral: true });
-            } else {
-                await interaction.reply({ content: 'error executing this. of course.', ephemeral: true });
+            const timeDiff = Date.now() - interaction.createdTimestamp;
+            console.log(`[latency] took ${timeDiff}ms to fail. incredible.`);
+
+            try {
+                if (interaction.replied || interaction.deferred) {
+                    await interaction.followUp({ content: 'something broke. i hate this.', ephemeral: true });
+                } else {
+                    await interaction.reply({ content: 'error executing this. of course.', ephemeral: true });
+                }
+            } catch (e) {
+                console.error('failed to tell user about error. fine. keep your secrets.', e);
             }
         }
     } else if (interaction.isAutocomplete()) {
@@ -83,4 +90,16 @@ http.createServer((req, res) => {
     res.end('ok');
 }).listen(port, () => {
     console.log(`health check server is running on port ${port}. leave me alone.`);
+});
+
+client.on('error', error => {
+    console.error('discord client error. fantastic.', error);
+});
+
+process.on('unhandledRejection', error => {
+    console.error('unhandled rejection. why is this happening.', error);
+});
+
+process.on('uncaughtException', error => {
+    console.error('uncaught exception. i give up.', error);
 });

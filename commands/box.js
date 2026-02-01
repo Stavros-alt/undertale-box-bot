@@ -132,10 +132,18 @@ module.exports = {
 
 function generateUrl(charId, expression, text) {
     // i'm just sticking params onto the url and praying.
+    const char = charData[charId];
+    let box = 'undertale';
+
+    if (char && char.universe === 'deltarune') {
+        box = 'deltarune';
+    }
+
     const params = new URLSearchParams();
     params.append('text', text);
     params.append('character', charId);
     params.append('expression', expression);
+    params.append('box', box);
 
     return `https://www.demirramon.com/gen/undertale_text_box.png?${params.toString()}`;
 }
