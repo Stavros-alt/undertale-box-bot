@@ -4,3 +4,13 @@ data/debug_page.html
 data/*.bak
 .DS_Store
 *.log
+
+# linux junk
+*~
+.directory
+
+# node junk
+npm-debug.log
+yarn-error.log
+dist/
+.vscode/

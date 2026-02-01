@@ -108,7 +108,7 @@ async function scrape() {
 
                     let kept = 0;
                     for (const [id, char] of Object.entries(chars)) {
-                        // filter out ghost characters with no sprites
+                        // filter out broken characters. waste of space.
                         if (char.sprites && char.sprites.textbox && Object.keys(char.sprites.textbox).length > 0) {
                             allCharacters[id] = char;
                             kept++;
