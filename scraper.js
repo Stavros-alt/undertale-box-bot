@@ -104,8 +104,17 @@ async function scrape() {
                 if (json && json.data) {
                     const chars = json.data;
                     const count = Object.keys(chars).length;
-                    console.log(`-> got ${count} chars for ${universeName}`);
-                    Object.assign(allCharacters, chars);
+                    console.log(`-> got ${count} raw chars for ${universeName}`);
+
+                    let kept = 0;
+                    for (const [id, char] of Object.entries(chars)) {
+                        // filter out ghost characters with no sprites
+                        if (char.sprites && char.sprites.textbox && Object.keys(char.sprites.textbox).length > 0) {
+                            allCharacters[id] = char;
+                            kept++;
+                        }
+                    }
+                    console.log(`-> kept ${kept} valid chars`);
                 }
             } catch (err) {
                 console.error(`-> ${universeName} failed: ${err.message}`);
