@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 
-// cached data because scraping is slow
+// cached because scraping takes years
 let charData = {};
 const DATA_PATH = path.join(__dirname, '../data/characters.json');
 
@@ -23,7 +23,7 @@ function loadData() {
 
 loadData();
 
-// reload every 5 mins. overkill but whatever.
+// reload every 5 mins. probably unnecessary.
 setInterval(loadData, 5 * 60 * 1000);
 
 module.exports = {
@@ -51,7 +51,7 @@ module.exports = {
 
         if (focusedOption.name === 'character') {
             const query = focusedOption.value.toLowerCase();
-            // limit to 25 because discord says so
+            // discord limits this to 25. annoying.
             let count = 0;
             for (const id in charData) {
                 const char = charData[id];
@@ -90,23 +90,7 @@ module.exports = {
         const text = interaction.options.getString('text');
         const expression = interaction.options.getString('expression') || 'default';
 
-        const imageUrl = generateUrl(charId, expression, text);
-
-        const row = new ActionRowBuilder()
-            .addComponents(
-                new ButtonBuilder()
-                    .setCustomId('box_edittext')
-                    .setLabel('Edit Text')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('✏️'),
-                new ButtonBuilder()
-                    .setCustomId('box_expression')
-                    .setLabel('Expression')
-                    .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('🎭')
-            );
-
-        await interaction.editReply({ files: [imageUrl], components: [row] });
+        await updateBoxMessage(interaction, charId, expression, text);
     },
 
     async handleButton(interaction) {
@@ -120,18 +104,117 @@ module.exports = {
                 .setLabel('New Text')
                 .setStyle(TextInputStyle.Paragraph);
 
+            // trying to save the char/expr. difficult since it's baked into the url.
+
             const row = new ActionRowBuilder().addComponents(textInput);
             modal.addComponents(row);
 
             await interaction.showModal(modal);
         } else if (interaction.customId === 'box_expression') {
+            // ... existing expression logic ...
             await interaction.reply({ content: 'expression editor is not finished. stop asking.', ephemeral: true });
+        }
+    },
+
+    async handleModal(interaction) {
+        if (interaction.customId === 'box_modal_text') {
+            await interaction.deferUpdate(); // acknowledge the modal (update the message)
+
+            const newText = interaction.fields.getTextInputValue('text_input');
+
+            // need to rescue params from the url.
+            // however! the interaction's message object has the attachments.
+            // checking the first attachment url might work.
+
+            const firstAttachment = interaction.message.attachments.first();
+            let charId = 'undertale-sans'; // fallback
+            let expression = 'default';
+
+            if (firstAttachment && firstAttachment.url) {
+                try {
+                    const url = new URL(firstAttachment.url);
+                    charId = url.searchParams.get('character') || charId;
+                    expression = url.searchParams.get('expression') || expression;
+                } catch (e) {
+                    console.error('failed to parse url from previous message. whatever.', e);
+                }
+            }
+
+            await updateBoxMessage(interaction, charId, expression, newText);
         }
     }
 };
 
+async function updateBoxMessage(interaction, charId, expression, text) {
+    const chunks = splitText(text);
+    const files = [];
+
+    for (const chunk of chunks) {
+        files.push(generateUrl(charId, expression, chunk));
+    }
+
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId('box_edittext')
+                .setLabel('Edit Text')
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji('✏️'),
+            new ButtonBuilder()
+                .setCustomId('box_expression')
+                .setLabel('Expression')
+                .setStyle(ButtonStyle.Secondary)
+                .setEmoji('🎭')
+        );
+
+    // modal update or initial command. editReply handles both.
+
+    await interaction.editReply({ content: '', files: files, components: [row] });
+}
+
+function splitText(text, limit = 100) {
+    if (!text) return ['...'];
+    if (text.length <= limit) return [text];
+
+    const chunks = [];
+    let currentChunk = '';
+    const words = text.split(' ');
+
+    for (const word of words) {
+        if ((currentChunk + word).length + 1 > limit) {
+            if (currentChunk.trim().length > 0) {
+                chunks.push(currentChunk.trim());
+                currentChunk = '';
+            }
+
+            if (word.length > limit) {
+                let remaining = word;
+                while (remaining.length > 0) {
+                    if (remaining.length > limit) {
+                        chunks.push(remaining.substring(0, limit));
+                        remaining = remaining.substring(limit);
+                    } else {
+                        currentChunk = remaining + ' ';
+                        remaining = '';
+                    }
+                }
+            } else {
+                currentChunk += word + ' ';
+            }
+        } else {
+            currentChunk += word + ' ';
+        }
+    }
+
+    if (currentChunk.trim().length > 0) {
+        chunks.push(currentChunk.trim());
+    }
+
+    return chunks;
+}
+
 function generateUrl(charId, expression, text) {
-    // i'm just sticking params onto the url and praying.
+    // append params and pray.
     const char = charData[charId];
     let box = 'undertale';
 

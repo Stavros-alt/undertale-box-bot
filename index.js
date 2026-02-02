@@ -78,6 +78,17 @@ client.on(Events.InteractionCreate, async interaction => {
                 await interaction.reply({ content: 'button handling failed. i am so tired.', ephemeral: true });
             }
         }
+    } else if (interaction.isModalSubmit()) {
+        const [commandName] = interaction.customId.split('_');
+        const command = interaction.client.commands.get(commandName);
+        if (command && command.handleModal) {
+            try {
+                await command.handleModal(interaction);
+            } catch (error) {
+                console.error(error);
+                await interaction.reply({ content: 'modal handling failed. shocker.', ephemeral: true });
+            }
+        }
     }
 });
 
