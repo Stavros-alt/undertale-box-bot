@@ -172,7 +172,7 @@ async function updateBoxMessage(interaction, charId, expression, text) {
     await interaction.editReply({ content: '', files: files, components: [row] });
 }
 
-function splitText(text, limit = 100) {
+function splitText(text, limit = 69) {
     if (!text) return ['...'];
     if (text.length <= limit) return [text];
 
