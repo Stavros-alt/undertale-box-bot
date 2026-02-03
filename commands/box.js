@@ -95,21 +95,7 @@ module.exports = {
 
     async handleButton(interaction) {
         if (interaction.customId === 'box_edittext') {
-            // try to pre-fill text if possible
-            let currentText = '';
-            const firstEmbed = interaction.message.embeds[0];
-            if (firstEmbed && firstEmbed.image && firstEmbed.image.url) {
-                try {
-                    // if multiple embeds, join the texts? might be messy with chunks.
-                    // simpler to just let them type new text.
-                    // or try to recover it:
-                    const texts = interaction.message.embeds.map(e => {
-                        const u = new URL(e.image.url);
-                        return u.searchParams.get('text');
-                    });
-                    currentText = texts.join(' ');
-                } catch (e) { }
-            }
+            const { text } = getParamsFromMessage(interaction.message);
 
             const modal = new ModalBuilder()
                 .setCustomId('box_modal_text')
@@ -119,26 +105,16 @@ module.exports = {
                 .setCustomId('text_input')
                 .setLabel('New Text')
                 .setStyle(TextInputStyle.Paragraph)
-                .setValue(currentText.substring(0, 4000)); // basic prefill
+                .setValue(text.substring(0, 4000));
 
             const row = new ActionRowBuilder().addComponents(textInput);
             modal.addComponents(row);
 
             await interaction.showModal(modal);
         } else if (interaction.customId === 'box_expression') {
-            const firstEmbed = interaction.message.embeds[0];
-            let charId = 'undertale-sans';
-
-            if (firstEmbed && firstEmbed.image && firstEmbed.image.url) {
-                try {
-                    const url = new URL(firstEmbed.image.url);
-                    charId = url.searchParams.get('character') || charId;
-                } catch (e) {
-                    // whatever
-                }
-            }
-
+            const { charId } = getParamsFromMessage(interaction.message);
             const char = charData[charId];
+
             if (!char || !char.sprites || !char.sprites.textbox) {
                 await interaction.reply({ content: 'no expressions found for this character. tragic.', ephemeral: true });
                 return;
@@ -167,22 +143,38 @@ module.exports = {
     async handleSelectMenu(interaction) {
         if (interaction.customId === 'box_selectexpr') {
             const selectedExpr = interaction.values[0];
-            const oldEmbeds = interaction.message.embeds;
             const newEmbeds = [];
 
-            // iterate over existing embeds to preserve text chunks
-            oldEmbeds.forEach(embed => {
-                if (embed.image && embed.image.url) {
-                    try {
-                        const url = new URL(embed.image.url);
-                        // update expression param
-                        url.searchParams.set('expression', selectedExpr);
-                        newEmbeds.push(new EmbedBuilder().setImage(url.toString()));
-                    } catch (e) {
-                        console.error('failed to parse url during update. ugh.', e);
-                    }
+            // Helper to process a URL string
+            const processUrl = (urlString) => {
+                try {
+                    const url = new URL(urlString);
+                    url.searchParams.set('expression', selectedExpr);
+                    return new EmbedBuilder().setImage(url.toString());
+                } catch (e) {
+                    console.error('bad url in select menu update', e);
+                    return null;
                 }
-            });
+            };
+
+            // Check Embeds first
+            if (interaction.message.embeds.length > 0) {
+                interaction.message.embeds.forEach(embed => {
+                    if (embed.image && embed.image.url) {
+                        const e = processUrl(embed.image.url);
+                        if (e) newEmbeds.push(e);
+                    }
+                });
+            }
+            // Fallback to Attachments (migration path)
+            else if (interaction.message.attachments.size > 0) {
+                interaction.message.attachments.each(att => {
+                    if (att.url) {
+                        const e = processUrl(att.url);
+                        if (e) newEmbeds.push(e);
+                    }
+                });
+            }
 
             const row = new ActionRowBuilder()
                 .addComponents(
@@ -204,29 +196,59 @@ module.exports = {
 
     async handleModal(interaction) {
         if (interaction.customId === 'box_modal_text') {
-            await interaction.deferUpdate(); // acknowledge the modal (update the message)
+            await interaction.deferUpdate();
 
             const newText = interaction.fields.getTextInputValue('text_input');
-
-            // need to rescue params from the url.
-            const firstEmbed = interaction.message.embeds[0];
-            let charId = 'undertale-sans'; // fallback
-            let expression = 'default';
-
-            if (firstEmbed && firstEmbed.image && firstEmbed.image.url) {
-                try {
-                    const url = new URL(firstEmbed.image.url);
-                    charId = url.searchParams.get('character') || charId;
-                    expression = url.searchParams.get('expression') || expression;
-                } catch (e) {
-                    console.error('failed to parse url from previous message. whatever.', e);
-                }
-            }
+            const { charId, expression } = getParamsFromMessage(interaction.message);
 
             await updateBoxMessage(interaction, charId, expression, newText);
         }
     }
 };
+
+function getParamsFromMessage(message) {
+    let charId = 'undertale-sans';
+    let expression = 'default';
+    let text = '';
+
+    // try embeds first
+    if (message.embeds.length > 0 && message.embeds[0].image && message.embeds[0].image.url) {
+        try {
+            const url = new URL(message.embeds[0].image.url);
+            charId = url.searchParams.get('character') || charId;
+            expression = url.searchParams.get('expression') || expression;
+            // join text from all embeds if possible, or just first? logic implies splitting.
+            // reconstructing full text from chunks is hard if we don't delimiter it.
+            // but usually we just want the first chunk's params.
+            // Text prefill is nice-to-have.
+            const texts = message.embeds.map(e => {
+                try {
+                    return new URL(e.image.url).searchParams.get('text');
+                } catch (e) { return ''; }
+            });
+            text = texts.join(' ');
+        } catch (e) { console.error('failed parsing embed url', e); }
+    }
+    // try attachments (legacy)
+    else if (message.attachments.size > 0) {
+        const first = message.attachments.first();
+        if (first.url) {
+            try {
+                const url = new URL(first.url);
+                charId = url.searchParams.get('character') || charId;
+                expression = url.searchParams.get('expression') || expression;
+                const texts = message.attachments.map(a => {
+                    try {
+                        return new URL(a.url).searchParams.get('text');
+                    } catch (e) { return ''; }
+                });
+                text = texts.join(' ');
+            } catch (e) { console.error('failed parsing attachment url', e); }
+        }
+    }
+
+    return { charId, expression, text };
+}
 
 async function updateBoxMessage(interaction, charId, expression, text) {
     const chunks = splitText(text);
