@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, AttachmentBuilder } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, AttachmentBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
@@ -111,8 +111,79 @@ module.exports = {
 
             await interaction.showModal(modal);
         } else if (interaction.customId === 'box_expression') {
-            // ... existing expression logic ...
-            await interaction.reply({ content: 'expression editor is not finished. stop asking.', ephemeral: true });
+            const firstAttachment = interaction.message.attachments.first();
+            let charId = 'undertale-sans';
+
+            if (firstAttachment && firstAttachment.url) {
+                try {
+                    const url = new URL(firstAttachment.url);
+                    charId = url.searchParams.get('character') || charId;
+                } catch (e) {
+                    // whatever
+                }
+            }
+
+            const char = charData[charId];
+            if (!char || !char.sprites || !char.sprites.textbox) {
+                await interaction.reply({ content: 'no expressions found for this character. tragic.', ephemeral: true });
+                return;
+            }
+
+            const expressions = Object.keys(char.sprites.textbox);
+            const options = expressions.slice(0, 25).map(expr => {
+                const sprite = char.sprites.textbox[expr];
+                const label = sprite.name || expr;
+                return new StringSelectMenuOptionBuilder()
+                    .setLabel(label.substring(0, 100))
+                    .setValue(expr);
+            });
+
+            const select = new StringSelectMenuBuilder()
+                .setCustomId('box_selectexpr')
+                .setPlaceholder('Select an expression...')
+                .addOptions(options);
+
+            const row = new ActionRowBuilder().addComponents(select);
+
+            await interaction.update({ components: [row] });
+        }
+    },
+
+    async handleSelectMenu(interaction) {
+        if (interaction.customId === 'box_selectexpr') {
+            const selectedExpr = interaction.values[0];
+            const attachments = interaction.message.attachments;
+            const files = [];
+
+            // iterate over existing attachments to preserve text chunks
+            attachments.each(attachment => {
+                if (attachment.url) {
+                    try {
+                        const url = new URL(attachment.url);
+                        // update expression param
+                        url.searchParams.set('expression', selectedExpr);
+                        files.push(url.toString());
+                    } catch (e) {
+                        console.error('failed to parse url during update. ugh.', e);
+                    }
+                }
+            });
+
+            const row = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('box_edittext')
+                        .setLabel('Edit Text')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setEmoji('✏️'),
+                    new ButtonBuilder()
+                        .setCustomId('box_expression')
+                        .setLabel('Expression')
+                        .setStyle(ButtonStyle.Secondary)
+                        .setEmoji('🎭')
+                );
+
+            await interaction.update({ content: '', files: files, components: [row] });
         }
     },
 

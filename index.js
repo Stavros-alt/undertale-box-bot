@@ -89,6 +89,17 @@ client.on(Events.InteractionCreate, async interaction => {
                 await interaction.reply({ content: 'modal handling failed. shocker.', ephemeral: true });
             }
         }
+    } else if (interaction.isStringSelectMenu()) {
+        const [commandName] = interaction.customId.split('_');
+        const command = interaction.client.commands.get(commandName);
+        if (command && command.handleSelectMenu) {
+            try {
+                await command.handleSelectMenu(interaction);
+            } catch (error) {
+                console.error(error);
+                await interaction.reply({ content: 'select menu handling failed. what else is new.', ephemeral: true });
+            }
+        }
     }
 });
 
