@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, AttachmentBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
+const { SlashCommandBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, AttachmentBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, EmbedBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
@@ -95,6 +95,22 @@ module.exports = {
 
     async handleButton(interaction) {
         if (interaction.customId === 'box_edittext') {
+            // try to pre-fill text if possible
+            let currentText = '';
+            const firstEmbed = interaction.message.embeds[0];
+            if (firstEmbed && firstEmbed.image && firstEmbed.image.url) {
+                try {
+                    // if multiple embeds, join the texts? might be messy with chunks.
+                    // simpler to just let them type new text.
+                    // or try to recover it:
+                    const texts = interaction.message.embeds.map(e => {
+                        const u = new URL(e.image.url);
+                        return u.searchParams.get('text');
+                    });
+                    currentText = texts.join(' ');
+                } catch (e) { }
+            }
+
             const modal = new ModalBuilder()
                 .setCustomId('box_modal_text')
                 .setTitle('Edit Dialogue');
@@ -102,21 +118,20 @@ module.exports = {
             const textInput = new TextInputBuilder()
                 .setCustomId('text_input')
                 .setLabel('New Text')
-                .setStyle(TextInputStyle.Paragraph);
-
-            // trying to save the char/expr. difficult since it's baked into the url.
+                .setStyle(TextInputStyle.Paragraph)
+                .setValue(currentText.substring(0, 4000)); // basic prefill
 
             const row = new ActionRowBuilder().addComponents(textInput);
             modal.addComponents(row);
 
             await interaction.showModal(modal);
         } else if (interaction.customId === 'box_expression') {
-            const firstAttachment = interaction.message.attachments.first();
+            const firstEmbed = interaction.message.embeds[0];
             let charId = 'undertale-sans';
 
-            if (firstAttachment && firstAttachment.url) {
+            if (firstEmbed && firstEmbed.image && firstEmbed.image.url) {
                 try {
-                    const url = new URL(firstAttachment.url);
+                    const url = new URL(firstEmbed.image.url);
                     charId = url.searchParams.get('character') || charId;
                 } catch (e) {
                     // whatever
@@ -152,17 +167,17 @@ module.exports = {
     async handleSelectMenu(interaction) {
         if (interaction.customId === 'box_selectexpr') {
             const selectedExpr = interaction.values[0];
-            const attachments = interaction.message.attachments;
-            const files = [];
+            const oldEmbeds = interaction.message.embeds;
+            const newEmbeds = [];
 
-            // iterate over existing attachments to preserve text chunks
-            attachments.each(attachment => {
-                if (attachment.url) {
+            // iterate over existing embeds to preserve text chunks
+            oldEmbeds.forEach(embed => {
+                if (embed.image && embed.image.url) {
                     try {
-                        const url = new URL(attachment.url);
+                        const url = new URL(embed.image.url);
                         // update expression param
                         url.searchParams.set('expression', selectedExpr);
-                        files.push(url.toString());
+                        newEmbeds.push(new EmbedBuilder().setImage(url.toString()));
                     } catch (e) {
                         console.error('failed to parse url during update. ugh.', e);
                     }
@@ -183,7 +198,7 @@ module.exports = {
                         .setEmoji('🎭')
                 );
 
-            await interaction.update({ content: '', files: files, components: [row] });
+            await interaction.update({ content: '', embeds: newEmbeds, files: [], components: [row] });
         }
     },
 
@@ -194,16 +209,13 @@ module.exports = {
             const newText = interaction.fields.getTextInputValue('text_input');
 
             // need to rescue params from the url.
-            // however! the interaction's message object has the attachments.
-            // checking the first attachment url might work.
-
-            const firstAttachment = interaction.message.attachments.first();
+            const firstEmbed = interaction.message.embeds[0];
             let charId = 'undertale-sans'; // fallback
             let expression = 'default';
 
-            if (firstAttachment && firstAttachment.url) {
+            if (firstEmbed && firstEmbed.image && firstEmbed.image.url) {
                 try {
-                    const url = new URL(firstAttachment.url);
+                    const url = new URL(firstEmbed.image.url);
                     charId = url.searchParams.get('character') || charId;
                     expression = url.searchParams.get('expression') || expression;
                 } catch (e) {
@@ -218,10 +230,10 @@ module.exports = {
 
 async function updateBoxMessage(interaction, charId, expression, text) {
     const chunks = splitText(text);
-    const files = [];
+    const embeds = [];
 
     for (const chunk of chunks) {
-        files.push(generateUrl(charId, expression, chunk));
+        embeds.push(new EmbedBuilder().setImage(generateUrl(charId, expression, chunk)));
     }
 
     const row = new ActionRowBuilder()
@@ -239,8 +251,8 @@ async function updateBoxMessage(interaction, charId, expression, text) {
         );
 
     // modal update or initial command. editReply handles both.
-
-    await interaction.editReply({ content: '', files: files, components: [row] });
+    // clear files to avoid clutter if switching from file based
+    await interaction.editReply({ content: '', embeds: embeds, files: [], components: [row] });
 }
 
 function splitText(text, limit = 69) {
