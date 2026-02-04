@@ -10,8 +10,11 @@ discord bot for generating undertale text boxes. i shouldn't have to explain thi
 4. `node scraper.js` if you want characters. it's slow.
 5. `node index.js`
 
-## usage
-
-`/box character:sans text:heya expression:wink`
+## how to use
+it's not complicated.
+1. use `/box character: <name> text: <dialogue>` to make a box.
+2. picking an expression is optional. if you're lazy, it defaults to "default".
+3. use the buttons on the message to edit it. saves you from typing the command again.
+4. use `/help` if you forget this. somehow.
 
 it probably works.
