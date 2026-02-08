@@ -11,8 +11,16 @@ function loadData() {
     if (fs.existsSync(DATA_PATH)) {
         try {
             const raw = fs.readFileSync(DATA_PATH);
-            charData = JSON.parse(raw);
-            console.log(`Loaded ${Object.keys(charData).length} characters.`);
+            const rawData = JSON.parse(raw);
+
+            // filter out the garbage ones
+            for (const id in rawData) {
+                if (rawData[id].shown_textbox !== false) {
+                    charData[id] = rawData[id];
+                }
+            }
+
+            console.log(`Loaded ${Object.keys(charData).length} characters. (Filtered out the broken ones)`);
         } catch (e) {
             console.error('failed to parse data. great.', e);
         }
