@@ -1,9 +1,10 @@
 # undertale-box-bot
 
-Status: 🌙 Hibernation (March 2026)
-Due to changes in Koyeb's hosting tier, this bot's live server is currently offline. The code remains fully functional and open-source for anyone who wants to self-host it.
+status: hibernation (march 2026)
+koyeb killed the free tier. the live server is offline. host it yourself if you want it; the code still works.
 
 discord bot for generating undertale text boxes. i shouldn't have to explain this.
+
 
 
 ## setup
